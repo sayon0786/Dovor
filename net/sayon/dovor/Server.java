@@ -10,7 +10,7 @@ public class Server extends Thread {
 	private ServerSocket ss;
 	private int port;
 	private Dovor dov;
-	
+
 	static {
 		log = Logger.getLogger(Server.class.getName());
 		log.setParent(Logger.getLogger(Dovor.class.getName()));
@@ -21,7 +21,7 @@ public class Server extends Thread {
 		this.port = port;
 		this.dov = dov;
 	}
-	
+
 	@Override
 	public void start() {
 		log.info("Starting ServerSocket on port " + port);
@@ -35,7 +35,7 @@ public class Server extends Thread {
 		log.info("Started ServerSocket on port " + port);
 		super.start();
 	}
-	
+
 	@Override
 	public void run() {
 		while (ss.isBound()) {

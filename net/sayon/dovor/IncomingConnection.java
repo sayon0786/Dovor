@@ -15,12 +15,12 @@ public class IncomingConnection extends Thread {
 	private static final Logger log;
 	private static final AtomicInteger counter = new AtomicInteger();
 	private static final ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
-	
+
 	private Socket s;
 	private Dovor dov;
 	private int id;
 	private Scanner sc;
-	
+
 	static {
 		log = Logger.getLogger(IncomingConnection.class.getName());
 		log.setParent(Logger.getLogger(Dovor.class.getName()));
@@ -31,7 +31,7 @@ public class IncomingConnection extends Thread {
 		this.id = counter.getAndIncrement();
 		this.s = s;
 		this.dov = dov;
-		
+
 		try {
 			this.sc = new Scanner(new InputStreamReader(s.getInputStream(), "UTF8"));
 		} catch (Exception e) {
@@ -46,15 +46,15 @@ public class IncomingConnection extends Thread {
 
 	public void run() {
 		ScheduledFuture<?> sf = executor.schedule(new Timeout(), 30, TimeUnit.SECONDS);
-		
+
 		while (sc.hasNextLine() && !isInterrupted()) {
 			String l = sc.nextLine();
 			String[] spl = l.split(" ");
-			
+
 			if (spl[0].equalsIgnoreCase("ping")) {
 				String address = spl[1];
 				String cookie = spl[2];
-				
+
 				Buddy b = dov.getBuddyList().getBuddy(address, true);
 				sf.cancel(true);
 				b.attatchIncoming(this.s, this.sc, cookie);
@@ -68,7 +68,7 @@ public class IncomingConnection extends Thread {
 			}
 		}
 	}
-	
+
 	private class Timeout implements Runnable {
 		public void run() {
 			sc.close();
