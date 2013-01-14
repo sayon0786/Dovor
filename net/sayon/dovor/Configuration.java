@@ -100,4 +100,8 @@ public class Configuration {
 		return Integer.parseInt(prop.getProperty("socks_port"));
 	}
 
+	public int getLocalPort() {
+		return Integer.parseInt(prop.getProperty("local_port"));
+	}
+
 }

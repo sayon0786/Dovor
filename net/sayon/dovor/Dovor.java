@@ -51,7 +51,7 @@ public class Dovor {
 		}
 		loadTorId();
 		// yqnkszic6ax54sjx
-		this.server = new Server(11010, this);
+		this.server = new Server(config.getLocalPort(), this);
 		server.start();
 
 		this.buddyList = new BuddyList(this);

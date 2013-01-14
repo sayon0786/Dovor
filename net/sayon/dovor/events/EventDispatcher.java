@@ -58,4 +58,70 @@ public class EventDispatcher implements BuddyListener {
 		}
 	}
 
+	@Override
+	public void onClient(ClientEvent e) {
+		for (BuddyListener l : dov.getBuddyListeners()) {
+			try {
+				l.onClient(e);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public void onVersion(VersionEvent e) {
+		for (BuddyListener l : dov.getBuddyListeners()) {
+			try {
+				l.onVersion(e);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public void onProfileName(ProfileNameEvent e) {
+		for (BuddyListener l : dov.getBuddyListeners()) {
+			try {
+				l.onProfileName(e);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public void onProfileText(ProfileTextEvent e) {
+		for (BuddyListener l : dov.getBuddyListeners()) {
+			try {
+				l.onProfileText(e);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public void onCommand(TextEvent e) {
+		for (BuddyListener l : dov.getBuddyListeners()) {
+			try {
+				l.onCommand(e);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public void onStatus(StatusEvent e) {
+		for (BuddyListener l : dov.getBuddyListeners()) {
+			try {
+				l.onStatus(e);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
 }

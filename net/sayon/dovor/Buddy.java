@@ -9,10 +9,7 @@ import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
-import net.sayon.dovor.events.AddMeEvent;
-import net.sayon.dovor.events.MessageEvent;
-import net.sayon.dovor.events.NotImplementedEvent;
-import net.sayon.dovor.events.RemoveMeEvent;
+import net.sayon.dovor.events.*;
 
 public class Buddy extends Thread {
 	private static final Logger log;
@@ -133,8 +130,9 @@ public class Buddy extends Thread {
 
 	public void setStatus(int status) {
 		if (this.status != status) {
+			StatusEvent se = new StatusEvent(this, status, this.status);
+			dov.getDispatcher().onStatus(se);
 			this.status = status;
-			// TODO
 		}
 	}
 
@@ -202,6 +200,10 @@ public class Buddy extends Thread {
 				String l = sc.nextLine();
 				String[] spl = l.split(" ");
 				if (spl[0].equals("pong")) {
+					if (spl.length < 2) {
+						log.warning(getAddress() + " sent us a pong without a cookie!");
+						break;
+					}
 					if (!spl[1].equals(cookie)) {
 						log.warning(getAddress() + " sent us a bad pong, " + spl[1] + " instead of " + cookie);
 						break;
@@ -222,17 +224,41 @@ public class Buddy extends Thread {
 						log.warning("Received unknown status '" + spl[1] + "' from " + getAddress());
 					}
 				} else if (spl[0].equals("version")) {
-					version = l.split(" ", 2)[1];
-					// TODO
+					String newVal;
+					if (l.split(" ", 2).length == 2)
+						newVal = l.split(" ", 2)[1];
+					else
+						newVal = "";
+					version = newVal;
+					VersionEvent ve = new VersionEvent(this, newVal);
+					dov.getDispatcher().onVersion(ve);
 				} else if (spl[0].equals("client")) {
-					client = l.split(" ", 2)[1];
-					// TODO
+					String newVal;
+					if (l.split(" ", 2).length == 2)
+						newVal = l.split(" ", 2)[1];
+					else
+						newVal = "";
+					client = newVal;
+					ClientEvent ce = new ClientEvent(this, newVal);
+					dov.getDispatcher().onClient(ce);
 				} else if (spl[0].equals("profile_text")) {
-					profile_text = l.split(" ", 2)[1];
-					// TODO
+					String newVal;
+					if (l.split(" ", 2).length == 2)
+						newVal = l.split(" ", 2)[1];
+					else
+						newVal = "";
+					profile_text = newVal;
+					ProfileTextEvent pte = new ProfileTextEvent(this, newVal);
+					dov.getDispatcher().onProfileText(pte);
 				} else if (spl[0].equals("profile_name")) {
-					profile_name = l.split(" ", 2)[1];
-					// TODO
+					String newVal;
+					if (l.split(" ", 2).length == 2)
+						newVal = l.split(" ", 2)[1];
+					else
+						newVal = "";
+					profile_name = newVal;
+					ProfileNameEvent pne = new ProfileNameEvent(this, newVal);
+					dov.getDispatcher().onProfileName(pne);
 				} else if (spl[0].equals("add_me")) {
 					AddMeEvent ame = new AddMeEvent(this);
 					dov.getDispatcher().onAddMe(ame);
@@ -252,6 +278,10 @@ public class Buddy extends Thread {
 					String[] xspl = l.split(" ", 2);
 					NotImplementedEvent me = new NotImplementedEvent(this, xspl.length > 1 ? xspl[1] : null);
 					dov.getDispatcher().onNotImplemented(me);
+				} else { // maybe should have most events be similar to this.
+					String[] xspl = l.split(" ", 2);
+					TextEvent te = new TextEvent(this, spl[0], xspl.length > 1 ? xspl[1] : null);
+					dov.getDispatcher().onCommand(te);
 				}
 			}
 		} catch (Exception e) {
@@ -329,7 +359,7 @@ public class Buddy extends Thread {
 
 	public void onFullyConnected() throws IOException {
 		sendAllInfo();
-		// TODO
+		// TODO event here
 	}
 
 	public void sendAllInfo() throws IOException {
