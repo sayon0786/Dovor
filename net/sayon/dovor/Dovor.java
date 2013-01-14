@@ -3,12 +3,16 @@ package net.sayon.dovor;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import net.sayon.dovor.listeners.BuddyListener;
+import net.sayon.dovor.events.EventDispatcher;
 
 public class Dovor {
 	private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
@@ -21,6 +25,8 @@ public class Dovor {
 	private Random random = new Random();
 	private Configuration config;
 	private int status = Buddy.ONLINE;
+	private BuddyListener dispatcher;
+	private ArrayList<BuddyListener> buddyListeners = new ArrayList<BuddyListener>();
 
 	static { // TODO switch to log4j
 		log = Logger.getLogger(Dovor.class.getName());
@@ -33,6 +39,7 @@ public class Dovor {
 
 	public Dovor() {
 		this.config = new Configuration();
+		this.dispatcher = new EventDispatcher(this);
 	}
 
 	public void init() {
@@ -138,7 +145,7 @@ public class Dovor {
 			return "Extended Away";
 		else if (status == Buddy.OFFLINE)
 			return "Offline";
-		else if (status == Buddy.HANDSHAKE)
+		else if (status == Buddy.CONNECTING_ME)
 			return "Handshake";
 		else
 			return null; // should never happen
@@ -146,5 +153,19 @@ public class Dovor {
 
 	public ScheduledExecutorService getExecutor() {
 		return executor;
+	}
+
+	public void addBuddyListener(BuddyListener bl) {
+		if (bl == null)
+			throw new NullPointerException();
+		buddyListeners.add(bl);
+	}
+
+	public BuddyListener getDispatcher() {
+		return dispatcher;
+	}
+
+	public ArrayList<BuddyListener> getBuddyListeners() {
+		return buddyListeners;
 	}
 }

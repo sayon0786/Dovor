@@ -9,10 +9,16 @@ import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
+import net.sayon.dovor.events.AddMeEvent;
+import net.sayon.dovor.events.MessageEvent;
+import net.sayon.dovor.events.NotImplementedEvent;
+import net.sayon.dovor.events.RemoveMeEvent;
+
 public class Buddy extends Thread {
 	private static final Logger log;
 	public static final int OFFLINE = -1;
-	public static final int HANDSHAKE = 0;
+	public static final int CONNECTING_ME = -2; // full connection waiting on me
+	public static final int CONNECTING_THEM = -3; // full connection waiting on them
 	public static final int ONLINE = 1;
 	public static final int AWAY = 2;
 	public static final int XA = 3;
@@ -35,6 +41,7 @@ public class Buddy extends Thread {
 	private int failedConnections = 0;
 	private long startConnectingAt = -1;
 	private long lastPingSent = 0;
+	private long lastKeepAlive = -1;
 	private boolean pongSent = false;
 	private boolean receivedPong = false;
 	private boolean fullBuddy;
@@ -70,7 +77,7 @@ public class Buddy extends Thread {
 					startConnectingAt = System.currentTimeMillis();
 					outgoing = new Socket(new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", dov.getConfig().getSocksPort())));
 					outgoing.connect(InetSocketAddress.createUnresolved(getAddress() + ".onion", 11009));
-					setStatus(HANDSHAKE);
+					setStatus(CONNECTING_THEM);
 					log.info("Handshake started with " + getAddress());
 					outgoingWriter = new OutputStreamWriter(outgoing.getOutputStream(), "UTF-8");
 					sendPing();
@@ -181,10 +188,14 @@ public class Buddy extends Thread {
 
 	public void attatchIncoming(Socket s, Scanner sc, String cookietp) {
 		try {
-			if (outgoingWriter != null) {
-				sendPong(cookietp);
-			} else {
-				this.cookieToPong = cookietp;
+			synchronized (connecting) {
+				if (!connecting.get() && outgoingWriter != null) {
+					sendPong(cookietp);
+				} else {
+					this.cookieToPong = cookietp;
+					if (!connecting.get())
+						connect();
+				}
 			}
 			this.incoming = s;
 			while (sc.hasNextLine()) {
@@ -192,13 +203,55 @@ public class Buddy extends Thread {
 				String[] spl = l.split(" ");
 				if (spl[0].equals("pong")) {
 					if (!spl[1].equals(cookie)) {
-						log.warning(getAddress() + " sent us a bad ping, " + spl[1] + " instead of " + cookie);
+						log.warning(getAddress() + " sent us a bad pong, " + spl[1] + " instead of " + cookie);
 						break;
 					}
 					receivedPong = true;
 				} else if (!receivedPong) {
 					log.warning(getAddress() + " sent " + l + " before pong, disconnecting.");
 					break;
+				} else if (spl[0].equals("status")) {
+					lastKeepAlive = System.currentTimeMillis();
+					if (spl[1].equals("available"))
+						setStatus(ONLINE);
+					else if (spl[1].equals("away"))
+						setStatus(AWAY);
+					else if (spl[1].equals("xa"))
+						setStatus(XA);
+					else {
+						log.warning("Received unknown status '" + spl[1] + "' from " + getAddress());
+					}
+				} else if (spl[0].equals("version")) {
+					version = l.split(" ", 2)[1];
+					// TODO
+				} else if (spl[0].equals("client")) {
+					client = l.split(" ", 2)[1];
+					// TODO
+				} else if (spl[0].equals("profile_text")) {
+					profile_text = l.split(" ", 2)[1];
+					// TODO
+				} else if (spl[0].equals("profile_name")) {
+					profile_name = l.split(" ", 2)[1];
+					// TODO
+				} else if (spl[0].equals("add_me")) {
+					AddMeEvent ame = new AddMeEvent(this);
+					dov.getDispatcher().onAddMe(ame);
+					if (!ame.isConsumed()) {
+						setFullBuddy(true);
+					}
+				} else if (spl[0].equals("remove_me")) {
+					RemoveMeEvent rme = new RemoveMeEvent(this);
+					dov.getDispatcher().onRemoveMe(rme);
+					if (!rme.isConsumed()) {
+						setFullBuddy(false);
+					}
+				} else if (spl[0].equals("message")) {
+					MessageEvent me = new MessageEvent(this, l.split(" ", 2)[1]);
+					dov.getDispatcher().onMessage(me);
+				} else if (spl[0].equals("not_implemented")) {
+					String[] xspl = l.split(" ", 2);
+					NotImplementedEvent me = new NotImplementedEvent(this, xspl.length > 1 ? xspl[1] : null);
+					dov.getDispatcher().onNotImplemented(me);
 				}
 			}
 		} catch (Exception e) {
@@ -275,7 +328,6 @@ public class Buddy extends Thread {
 	}
 
 	public void onFullyConnected() throws IOException {
-		setFullBuddy(true);
 		sendAllInfo();
 		// TODO
 	}
