@@ -5,10 +5,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class Dovor {
+	private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
 	private static String hiddenService = System.getenv("HOME") + "/dev/tesths";
 	private static final Logger log;
 
@@ -45,7 +48,11 @@ public class Dovor {
 		server.start();
 
 		this.buddyList = new BuddyList(this);
-		buddyList.loadBuddylist();
+		try {
+			buddyList.loadBuddylist();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private void loadTorId() {
@@ -135,5 +142,9 @@ public class Dovor {
 			return "Handshake";
 		else
 			return null; // should never happen
+	}
+
+	public ScheduledExecutorService getExecutor() {
+		return executor;
 	}
 }

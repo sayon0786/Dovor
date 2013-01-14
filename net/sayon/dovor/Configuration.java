@@ -15,11 +15,10 @@ public class Configuration {
 	private Properties prop;
 
 	public Configuration() {
-		// empty
+		this.prop = new Properties();
 	}
 
 	public void load(InputStream is) throws IOException {
-		this.prop = new Properties();
 		prop.load(is);
 	}
 
@@ -73,8 +72,8 @@ public class Configuration {
 		os.flush();
 	}
 
-	public void getBuddyListLocation() {
-		// TODO
+	public String getBuddyListLocation() {
+		return (String) prop.get("buddy_list");
 	}
 
 	public Properties getProperties() {
@@ -95,6 +94,10 @@ public class Configuration {
 
 	public String getProfileText() {
 		return (String) prop.get("profile_text");
+	}
+
+	public int getSocksPort() {
+		return Integer.parseInt(prop.getProperty("socks_port"));
 	}
 
 }

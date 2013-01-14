@@ -2,6 +2,8 @@ package net.sayon.dovor;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.Socket;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -15,20 +17,27 @@ public class Buddy extends Thread {
 	public static final int AWAY = 2;
 	public static final int XA = 3;
 
+	private Dovor dov;
 	private String address;
+	private String nick;
 	private String profile_name;
 	private String profile_text;
 	private String client;
 	private String version;
-	private Dovor dov;
 	private String cookie;
+	private String cookieToPong;
 	private Socket incoming;
 	private Socket outgoing;
 	private OutputStreamWriter outgoingWriter;
-	private String cookieToPong;
 	private AtomicBoolean connecting = new AtomicBoolean(false);
-	private long startConnectingAt;
-	private boolean pongSent;
+	private int status = OFFLINE;
+	private int unansweredPings = 0;
+	private int failedConnections = 0;
+	private long startConnectingAt = -1;
+	private long lastPingSent = 0;
+	private boolean pongSent = false;
+	private boolean receivedPong = false;
+	private boolean fullBuddy;
 
 	static {
 		log = Logger.getLogger(Buddy.class.getName());
@@ -36,29 +45,46 @@ public class Buddy extends Thread {
 		log.setLevel(Logger.getLogger(Dovor.class.getName()).getLevel());
 	}
 
-	public Buddy(Dovor dov, String address) {
+	public Buddy(Dovor dov, String address, boolean fullBuddy) {
 		this.dov = dov;
 		this.address = address;
 		this.cookie = makeCookie();
+		this.fullBuddy = fullBuddy;
 	}
 
 	public void connect() {
-		if (connecting.get()) {
-			log.warning(getAddress() + " connect() called but already connecting!");
-			return;
-		}
-		if (outgoing != null) {
-			log.warning(getAddress() + " connect() called but outgoing socket not null!");
-			return;
+		synchronized (connecting) {
+			if (connecting.get()) {
+				log.warning(getAddress() + " connect() called but already connecting!");
+				return;
+			}
+			if (outgoing != null) {
+				log.warning(getAddress() + " connect() called but outgoing socket not null!");
+				return;
+			}
+			connecting.set(true);
 		}
 		new Thread() {
 			public void run() {
 				try {
 					startConnectingAt = System.currentTimeMillis();
+					outgoing = new Socket(new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", dov.getConfig().getSocksPort())));
+					outgoing.connect(InetSocketAddress.createUnresolved(getAddress() + ".onion", 11009));
+					setStatus(HANDSHAKE);
+					log.info("Handshake started with " + getAddress());
+					outgoingWriter = new OutputStreamWriter(outgoing.getOutputStream(), "UTF-8");
+					sendPing();
+					if (incoming != null && cookieToPong != null && !pongSent) {
+						sendPong(cookieToPong);
+					}
+
+					failedConnections = 0;
 				} catch (Exception e) {
 					e.printStackTrace();
-					outgoing = null;
+					failedConnections++;
+					disconnect();
 				} finally {
+					startConnectingAt = -1;
 					connecting.set(false);
 				}
 			}
@@ -73,6 +99,12 @@ public class Buddy extends Thread {
 				// nothing
 			}
 		}
+		if (outgoingWriter != null)
+			try {
+				outgoingWriter.close();
+			} catch (IOException e1) {
+				// nothing
+			}
 		if (outgoing != null) {
 			try {
 				outgoing.close();
@@ -80,11 +112,29 @@ public class Buddy extends Thread {
 				// nothing
 			}
 		}
+		setStatus(OFFLINE);
+		startConnectingAt = -1;
+		incoming = null;
+		outgoingWriter = null;
+		outgoing = null;
+		pongSent = false;
+		lastPingSent = -1;
+		unansweredPings = 0;
+		cookieToPong = null;
 		connecting.set(false);
 	}
 
 	public void setStatus(int status) {
-		// TODO
+		if (this.status != status) {
+			this.status = status;
+			// TODO
+		}
+	}
+
+	public void sendPing() throws IOException {
+		send(String.format("ping %s", cookie));
+		unansweredPings++;
+		lastPingSent = System.currentTimeMillis();
 	}
 
 	public void sendPong(String pong) throws IOException {
@@ -119,7 +169,8 @@ public class Buddy extends Thread {
 	public void send(String s) throws IOException {
 		synchronized (outgoing) {
 			try {
-				outgoingWriter.write(s + "\n");
+				outgoingWriter.write(s);
+				outgoingWriter.write(0x0A);
 				outgoingWriter.flush();
 			} catch (IOException e) {
 				disconnect();
@@ -128,9 +179,33 @@ public class Buddy extends Thread {
 		}
 	}
 
-	public void attatchIncoming(Socket s, Scanner sc, String cookie) {
-		this.incoming = s;
-		this.cookieToPong = cookie;
+	public void attatchIncoming(Socket s, Scanner sc, String cookietp) {
+		try {
+			if (outgoingWriter != null) {
+				sendPong(cookietp);
+			} else {
+				this.cookieToPong = cookietp;
+			}
+			this.incoming = s;
+			while (sc.hasNextLine()) {
+				String l = sc.nextLine();
+				String[] spl = l.split(" ");
+				if (spl[0].equals("pong")) {
+					if (!spl[1].equals(cookie)) {
+						log.warning(getAddress() + " sent us a bad ping, " + spl[1] + " instead of " + cookie);
+						break;
+					}
+					receivedPong = true;
+				} else if (!receivedPong) {
+					log.warning(getAddress() + " sent " + l + " before pong, disconnecting.");
+					break;
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			disconnect();
+		}
 	}
 
 	private String makeCookie() { // I was really tempted to name this method bakeCookie :3
@@ -160,6 +235,57 @@ public class Buddy extends Thread {
 
 	public String getVersion() {
 		return version;
+	}
+
+	public String getNick() {
+		return nick;
+	}
+
+	public void setNick(String nick) {
+		this.nick = nick;
+	}
+
+	/**
+	 * Intended for use to set the buddies last known profile_name when loading buddies
+	 * 
+	 * @param profile_name
+	 */
+	public void setProfileName(String profile_name) {
+		this.profile_name = profile_name;
+	}
+
+	public boolean isFullBuddy() {
+		return fullBuddy;
+	}
+
+	public void setFullBuddy(boolean fullBuddy) {
+		this.fullBuddy = fullBuddy;
+	}
+
+	public int getStatus() {
+		return status;
+	}
+
+	public String getStatusStringDisplay() {
+		return Dovor.getStatusStringDisplay(status);
+	}
+
+	public String getStatusStringInternal() {
+		return Dovor.getStatusStringInternal(status);
+	}
+
+	public void onFullyConnected() throws IOException {
+		setFullBuddy(true);
+		sendAllInfo();
+		// TODO
+	}
+
+	public void sendAllInfo() throws IOException {
+		sendClient();
+		sendVersion();
+		sendProfileName();
+		sendProfileText();
+		sendStatus();
 	}
 
 }
