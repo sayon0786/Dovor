@@ -1,18 +1,32 @@
 package net.sayon.dovor;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Date;
 import java.util.Properties;
+import java.util.Scanner;
+import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 public class Configuration {
 	private static final String VERSION = "Junthor";
 	private static final String CLIENT = "Dovor";
+	private static final long KEEP_ALIVE_INTERVAL = 120;
+	private static final Logger log;
 	private String configFile;
 	private Properties prop;
+	private String torchatId;
+
+	static {
+		log = Logger.getLogger(Configuration.class.getName());
+		log.setParent(Logger.getLogger(Dovor.class.getName()));
+		log.setLevel(Logger.getLogger(Dovor.class.getName()).getLevel());
+	}
 
 	public Configuration() {
 		this.prop = new Properties();
@@ -102,6 +116,49 @@ public class Configuration {
 
 	public int getLocalPort() {
 		return Integer.parseInt(prop.getProperty("local_port"));
+	}
+
+	public long getKeepAliveInterval() {
+		return KEEP_ALIVE_INTERVAL * 1000; // TODO make configurable
+	}
+
+	public void loadTorId() {
+		String hiddenService = prop.getProperty("hidden_service").replaceAll("\\\\", "/");
+		if (hiddenService.contains("$")) {
+			for (String s : hiddenService.split("/")) {
+				if (s.startsWith("$")) {
+					hiddenService = hiddenService.replaceAll(Pattern.quote(s), System.getenv(s.substring(1)));
+				}
+			}
+		}
+		if (hiddenService.length() == 16 && !hiddenService.contains("/")
+				&& !hiddenService.contains("\\")) { // this var likely directly contains the torid
+			this.torchatId = hiddenService;
+		} else if (hiddenService.length() == 22 && !hiddenService.contains("/")
+				&& !hiddenService.contains("\\")) { // this var likely directly contains the torid with .onion appended
+			this.torchatId = hiddenService.substring(0, 16);
+		} else {
+			File f = new File(hiddenService);
+			if (f.isDirectory()) { // we assume this is the folder containing hostname
+				f = new File(hiddenService, "hostname");
+			}
+			if (f.isFile()) { // we assume that this is hostname
+				try {
+					this.torchatId = new Scanner(f).nextLine().substring(0, 16);
+				} catch (FileNotFoundException e) {
+					this.torchatId = null;
+				}
+			}
+		}
+
+		if (this.torchatId == null) {
+			log.severe("Could not acquire torchatId.");
+			throw new RuntimeException("Could not acquire torchatId,.");
+		}
+	}
+
+	public String getTorchatId() {
+		return torchatId;
 	}
 
 }

@@ -20,6 +20,6 @@ public interface BuddyListener {
 	public void onProfileText(ProfileTextEvent e);
 
 	public void onCommand(TextEvent e);
-	
+
 	public void onStatus(StatusEvent e);
 }

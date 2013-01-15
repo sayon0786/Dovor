@@ -21,7 +21,7 @@ public class BuddyList {
 		this.dov = dov;
 	}
 
-	public void add(Buddy b) {
+	private void add(Buddy b) {
 		if (hasBuddy(b.getAddress()))
 			return;
 		b.setFullBuddy(true);
@@ -48,6 +48,7 @@ public class BuddyList {
 		if (b != null)
 			return b;
 		b = new Buddy(dov, address, false);
+		add(b);
 		return b;
 	}
 
@@ -65,6 +66,7 @@ public class BuddyList {
 			String extra = l.substring(16);
 			Buddy b = getBuddy(address, true);
 			b.setFullBuddy(true);
+			b.setNextReconnection();
 			if (extra.length() > 0) {
 				if (extra.startsWith("!")) {
 					b.setNick(extra.substring(1));

@@ -43,7 +43,7 @@ public class IncomingConnection extends Thread {
 
 	public void run() {
 		ScheduledFuture<?> sf = dov.getExecutor().schedule(new Timeout(), 30, TimeUnit.SECONDS);
-
+		String pong = null;
 		while (sc.hasNextLine() && !isInterrupted()) {
 			String l = sc.nextLine();
 			String[] spl = l.split(" ");
@@ -54,7 +54,10 @@ public class IncomingConnection extends Thread {
 
 				Buddy b = dov.getBuddyList().getBuddy(address, true);
 				sf.cancel(true);
-				b.attatchIncoming(this.s, this.sc, cookie);
+				b.attatchIncoming(this.s, this.sc, cookie, pong);
+			} else if (spl[0].equalsIgnoreCase("pong")) {
+				pong = spl[1];
+
 			} else {
 				try {
 					s.close();

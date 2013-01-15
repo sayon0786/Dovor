@@ -1,27 +1,23 @@
 package net.sayon.dovor;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
-import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import net.sayon.dovor.listeners.BuddyListener;
 import net.sayon.dovor.events.EventDispatcher;
+import net.sayon.dovor.listeners.BuddyListener;
 
 public class Dovor {
 	private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
-	private static String hiddenService = System.getenv("HOME") + "/dev/tesths";
 	private static final Logger log;
 
 	private Server server;
 	private BuddyList buddyList;
-	private String torchatId;
 	private Random random = new Random();
 	private Configuration config;
 	private int status = Buddy.ONLINE;
@@ -49,7 +45,7 @@ public class Dovor {
 			log.severe("Failed to load config " + e.getLocalizedMessage());
 			throw new RuntimeException(e);
 		}
-		loadTorId();
+		config.loadTorId();
 		// yqnkszic6ax54sjx
 		this.server = new Server(config.getLocalPort(), this);
 		server.start();
@@ -58,35 +54,19 @@ public class Dovor {
 		try {
 			buddyList.loadBuddylist();
 		} catch (FileNotFoundException e) {
+			log.warning("Failed to load Buddylist: " + e.getLocalizedMessage());
+		}
+
+		// test code
+		Buddy b = getBuddyList().getBuddy("yqnkszic6ax54sjx", true);
+		b.setFullBuddy(true);
+		b.setNextReconnection();
+		try {
+			b.requestAdd();
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
-	}
-
-	private void loadTorId() {
-		if (hiddenService.length() == 16 && !hiddenService.contains("/")
-				&& !hiddenService.contains("\\")) { // this var likely directly contains the torid
-			this.torchatId = hiddenService;
-		} else if (hiddenService.length() == 22 && !hiddenService.contains("/")
-				&& !hiddenService.contains("\\")) { // this var likely directly contains the torid with .onion appended
-			this.torchatId = hiddenService.substring(0, 16);
-		} else {
-			File f = new File(hiddenService);
-			if (f.isDirectory()) { // we assume this is the folder containing hostname
-				f = new File(hiddenService, "hostname");
-			}
-			if (f.isFile()) { // we assume that this is hostname
-				try {
-					this.torchatId = new Scanner(f).nextLine().substring(0, 16);
-				} catch (FileNotFoundException e) {
-					this.torchatId = null;
-				}
-			}
-		}
-
-		if (this.torchatId == null) {
-			log.severe("Could not acquire torchatId, terminating.");
-			throw new RuntimeException("Could not acquire torchatId, terminating.");
-		}
+		System.out.println((System.currentTimeMillis() - b.getNextReconnection()));
 	}
 
 	public static Level getLogLevel() {
@@ -95,10 +75,6 @@ public class Dovor {
 
 	public BuddyList getBuddyList() {
 		return buddyList;
-	}
-
-	public String getTorchatId() {
-		return torchatId;
 	}
 
 	public Random getRandom() {
@@ -111,6 +87,7 @@ public class Dovor {
 
 	public void setStatus(int status) {
 		this.status = status;
+		log.info("Status: " + status);
 	}
 
 	public int getStatus() {

@@ -43,6 +43,7 @@ public class Server extends Thread {
 				Socket s = ss.accept();
 				IncomingConnection ic = new IncomingConnection(s, this.dov);
 				log.info("New IncomingConnection. icid: " + ic.id());
+				ic.start();
 			} catch (IOException e) {
 				e.printStackTrace();
 			}

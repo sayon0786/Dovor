@@ -5,7 +5,10 @@ import java.io.OutputStreamWriter;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Scanner;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
@@ -16,6 +19,7 @@ public class Buddy extends Thread {
 	public static final int OFFLINE = -1;
 	public static final int CONNECTING_ME = -2; // full connection waiting on me
 	public static final int CONNECTING_THEM = -3; // full connection waiting on them
+	public static final int CONNECTING = -4; // almost full connection
 	public static final int ONLINE = 1;
 	public static final int AWAY = 2;
 	public static final int XA = 3;
@@ -38,10 +42,16 @@ public class Buddy extends Thread {
 	private int failedConnections = 0;
 	private long startConnectingAt = -1;
 	private long lastPingSent = 0;
-	private long lastKeepAlive = -1;
+	private long lastKeepAliveReceived = -1;
+	private long nextReconnection = -1;
+	private long connectedAt = -1;
+	private long lastKeepAliveSent = -1;
+	private boolean ofcExcecuted = false;
 	private boolean pongSent = false;
 	private boolean receivedPong = false;
 	private boolean fullBuddy;
+	private ScheduledFuture<?> sc;
+	private ArrayList<String> queue = new ArrayList<String>(); // TODO save to disk somewhere
 
 	static {
 		log = Logger.getLogger(Buddy.class.getName());
@@ -54,9 +64,12 @@ public class Buddy extends Thread {
 		this.address = address;
 		this.cookie = makeCookie();
 		this.fullBuddy = fullBuddy;
+
+		this.sc = dov.getExecutor().scheduleWithFixedDelay(new Bupov(), (long) (dov.getRandom().nextDouble() * 30 * 1000), 30 * 1000, TimeUnit.MILLISECONDS);
 	}
 
 	public void connect() {
+		log.info("Connect called.");
 		synchronized (connecting) {
 			if (connecting.get()) {
 				log.warning(getAddress() + " connect() called but already connecting!");
@@ -71,21 +84,30 @@ public class Buddy extends Thread {
 		new Thread() {
 			public void run() {
 				try {
+					nextReconnection = -1;
 					startConnectingAt = System.currentTimeMillis();
+					log.info("Connect to proxy started.");
 					outgoing = new Socket(new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", dov.getConfig().getSocksPort())));
+					log.info("Connect to buddy started.");
 					outgoing.connect(InetSocketAddress.createUnresolved(getAddress() + ".onion", 11009));
-					setStatus(CONNECTING_THEM);
+					if (incoming != null)
+						setStatus(CONNECTING);
+					else
+						setStatus(CONNECTING_THEM);
 					log.info("Handshake started with " + getAddress());
 					outgoingWriter = new OutputStreamWriter(outgoing.getOutputStream(), "UTF-8");
 					sendPing();
 					if (incoming != null && cookieToPong != null && !pongSent) {
 						sendPong(cookieToPong);
+						checkOfc();
 					}
 
+					connectedAt = System.currentTimeMillis();
 					failedConnections = 0;
 				} catch (Exception e) {
 					e.printStackTrace();
 					failedConnections++;
+					setNextReconnection();
 					disconnect();
 				} finally {
 					startConnectingAt = -1;
@@ -95,7 +117,13 @@ public class Buddy extends Thread {
 		}.start();
 	}
 
+	public void setNextReconnection() {
+		nextReconnection = (long) (System.currentTimeMillis() + (failedConnections <= 3 ? 10 : failedConnections <= 6 ? 120 : failedConnections <= 10 ? 600 : 1800) * 1000 + ((dov.getRandom().nextDouble() - 0.5d) * 20 * 2 * 1000));
+	}
+
 	public void disconnect() {
+		Thread.dumpStack();
+		log.info("Disconnect called.");
 		if (incoming != null) {
 			try {
 				incoming.close();
@@ -121,8 +149,11 @@ public class Buddy extends Thread {
 		incoming = null;
 		outgoingWriter = null;
 		outgoing = null;
+		ofcExcecuted = false;
 		pongSent = false;
 		lastPingSent = -1;
+		lastKeepAliveSent = -1;
+		lastKeepAliveReceived = -1;
 		unansweredPings = 0;
 		cookieToPong = null;
 		connecting.set(false);
@@ -137,7 +168,7 @@ public class Buddy extends Thread {
 	}
 
 	public void sendPing() throws IOException {
-		send(String.format("ping %s", cookie));
+		send(String.format("ping %s %s", dov.getConfig().getTorchatId(), cookie));
 		unansweredPings++;
 		lastPingSent = System.currentTimeMillis();
 	}
@@ -169,11 +200,13 @@ public class Buddy extends Thread {
 
 	public void sendStatus() throws IOException {
 		send(String.format("status %s", dov.getStatusStringInternal()));
+		lastKeepAliveSent = System.currentTimeMillis();
 	}
 
 	public void send(String s) throws IOException {
 		synchronized (outgoing) {
 			try {
+				log.info("< " + s);
 				outgoingWriter.write(s);
 				outgoingWriter.write(0x0A);
 				outgoingWriter.flush();
@@ -184,36 +217,38 @@ public class Buddy extends Thread {
 		}
 	}
 
-	public void attatchIncoming(Socket s, Scanner sc, String cookietp) {
+	public void attatchIncoming(Socket s, Scanner sc, String cookietp, String pong) {
+		log.info("incoming attatch");
 		try {
-			synchronized (connecting) {
-				if (!connecting.get() && outgoingWriter != null) {
-					sendPong(cookietp);
-				} else {
-					this.cookieToPong = cookietp;
-					if (!connecting.get())
-						connect();
-				}
-			}
+			if (pong != null && !checkPong(pong))
+				return;
+			checkCtp(cookietp);
 			this.incoming = s;
 			while (sc.hasNextLine()) {
 				String l = sc.nextLine();
+				log.info("> " + l);
 				String[] spl = l.split(" ");
 				if (spl[0].equals("pong")) {
 					if (spl.length < 2) {
 						log.warning(getAddress() + " sent us a pong without a cookie!");
 						break;
 					}
-					if (!spl[1].equals(cookie)) {
-						log.warning(getAddress() + " sent us a bad pong, " + spl[1] + " instead of " + cookie);
+					if (!checkPong(spl[1]))
+						break;
+				} else if (spl[0].equals("ping")) {
+					String address = spl[1];
+					if (!address.equalsIgnoreCase(getAddress())) {
+						log.warning(getAddress() + " sent us a ping with " + address + " as their id");
 						break;
 					}
-					receivedPong = true;
+					String cookie = spl[2];
+
+					checkCtp(cookie);
 				} else if (!receivedPong) {
 					log.warning(getAddress() + " sent " + l + " before pong, disconnecting.");
 					break;
 				} else if (spl[0].equals("status")) {
-					lastKeepAlive = System.currentTimeMillis();
+					lastKeepAliveReceived = System.currentTimeMillis();
 					if (spl[1].equals("available"))
 						setStatus(ONLINE);
 					else if (spl[1].equals("away"))
@@ -278,7 +313,7 @@ public class Buddy extends Thread {
 					String[] xspl = l.split(" ", 2);
 					NotImplementedEvent me = new NotImplementedEvent(this, xspl.length > 1 ? xspl[1] : null);
 					dov.getDispatcher().onNotImplemented(me);
-				} else { // maybe should have most events be similar to this.
+				} else { // TODO maybe should have most events be similar to this.
 					String[] xspl = l.split(" ", 2);
 					TextEvent te = new TextEvent(this, spl[0], xspl.length > 1 ? xspl[1] : null);
 					dov.getDispatcher().onCommand(te);
@@ -288,6 +323,38 @@ public class Buddy extends Thread {
 			e.printStackTrace();
 		} finally {
 			disconnect();
+		}
+	}
+
+	private void checkCtp(String cookietp) throws IOException {
+		synchronized (connecting) {
+			if (!connecting.get() && outgoingWriter != null) {
+				sendPong(cookietp);
+				checkOfc();
+			} else {
+				this.cookieToPong = cookietp;
+				if (!connecting.get()) {
+					setStatus(CONNECTING_ME);
+					connect();
+				}
+			}
+		}
+	}
+
+	private boolean checkPong(String pong) throws IOException {
+		if (!pong.equals(cookie)) {
+			log.warning(getAddress() + " sent us a bad pong, " + pong + " instead of " + cookie);
+			return false;
+		}
+		receivedPong = true;
+		checkOfc();
+		return true;
+	}
+
+	private synchronized void checkOfc() throws IOException {
+		if (receivedPong && pongSent && !ofcExcecuted) {
+			ofcExcecuted = true;
+			onFullyConnected();
 		}
 	}
 
@@ -359,7 +426,26 @@ public class Buddy extends Thread {
 
 	public void onFullyConnected() throws IOException {
 		sendAllInfo();
+		checkQueue();
 		// TODO event here
+	}
+
+	public boolean isPongOk() {
+		return pongSent && receivedPong;
+	}
+
+	public void requestAdd() throws IOException {
+		if (isPongOk()) {
+			send("add_me");
+		} else {
+			addToQueue("add_me");
+		}
+	}
+
+	public void addToQueue(String string) {
+		synchronized (queue) {
+			queue.add(string);
+		}
 	}
 
 	public void sendAllInfo() throws IOException {
@@ -370,4 +456,55 @@ public class Buddy extends Thread {
 		sendStatus();
 	}
 
+	public long getNextReconnection() {
+		return nextReconnection;
+	}
+
+	private class Bupov implements Runnable {
+		public void run() {
+			log.info("kalthread");
+			if (outgoingWriter != null) {
+				if (unansweredPings > 3) {
+					disconnect();
+					return;
+				} else if (!receivedPong && System.currentTimeMillis() - lastPingSent > 30 * 1000) {
+					try {
+						sendPing();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				} else if (System.currentTimeMillis() - lastKeepAliveReceived > dov.getConfig().getKeepAliveInterval() * 2
+						&& System.currentTimeMillis() - connectedAt > dov.getConfig().getKeepAliveInterval() / 4) {
+					disconnect();
+					return;
+				}
+
+				if (pongSent && receivedPong && System.currentTimeMillis() - lastKeepAliveSent > dov.getConfig().getKeepAliveInterval()) {
+					try {
+						sendStatus();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+				try {
+					checkQueue();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			} else {
+				if (!connecting.get() && nextReconnection >= 0 && System.currentTimeMillis() - nextReconnection > 0) {
+					connect();
+				}
+			}
+		}
+	}
+
+	public void checkQueue() throws IOException {
+		if (pongSent && receivedPong && outgoingWriter != null && incoming != null) {
+			while (queue.size() > 0) {
+				String s = queue.remove(0);
+				send(s);
+			}
+		}
+	}
 }
