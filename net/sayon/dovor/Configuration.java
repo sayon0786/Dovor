@@ -84,6 +84,8 @@ public class Configuration {
 	public void save(OutputStream os, boolean close) throws IOException {
 		prop.store(os, new Date().toString());
 		os.flush();
+		if (close)
+			os.close();
 	}
 
 	public String getBuddyListLocation() {
@@ -153,7 +155,7 @@ public class Configuration {
 
 		if (this.torchatId == null) {
 			log.severe("Could not acquire torchatId.");
-			throw new RuntimeException("Could not acquire torchatId,.");
+			throw new RuntimeException("Could not acquire torchatId.");
 		}
 	}
 

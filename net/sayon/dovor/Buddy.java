@@ -99,6 +99,7 @@ public class Buddy extends Thread {
 					sendPing();
 					if (incoming != null && cookieToPong != null && !pongSent) {
 						sendPong(cookieToPong);
+						cookieToPong = null;
 						checkOfc();
 					}
 
@@ -157,6 +158,7 @@ public class Buddy extends Thread {
 		unansweredPings = 0;
 		cookieToPong = null;
 		connecting.set(false);
+		// TODO maybe generate a new cookie here?
 	}
 
 	public void setStatus(int status) {
