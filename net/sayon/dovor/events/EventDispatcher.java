@@ -135,4 +135,15 @@ public class EventDispatcher implements BuddyListener {
 		}
 	}
 
+	@Override
+	public void onReverseEvent(ReverseEvent e) {
+		for (BuddyListener l : dov.getBuddyListeners()) {
+			try {
+				l.onReverseEvent(e);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
 }

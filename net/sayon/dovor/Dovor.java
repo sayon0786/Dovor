@@ -124,6 +124,10 @@ public class Dovor {
 			return "Offline";
 		else if (status == Buddy.CONNECTING_ME)
 			return "Handshake";
+		else if (status == Buddy.CONNECTING_THEM)
+			return "Handshake";
+		else if (status == Buddy.CONNECTING)
+			return "Handshake";
 		else
 			return null; // should never happen
 	}

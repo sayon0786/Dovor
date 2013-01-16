@@ -1,6 +1,8 @@
 package net.sayon.dovor;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -11,6 +13,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
+
+import javax.sound.sampled.ReverbType;
 
 import net.sayon.dovor.events.*;
 
@@ -429,6 +433,7 @@ public class Buddy extends Thread {
 	public void onFullyConnected() throws IOException {
 		sendAllInfo();
 		checkQueue();
+		new BuddyReverse().start();
 		FullyConnectedEvent fce = new FullyConnectedEvent(this);
 		dov.getDispatcher().onFullyConnected(fce);
 	}
@@ -510,4 +515,34 @@ public class Buddy extends Thread {
 			}
 		}
 	}
+	
+	private class BuddyReverse extends Thread {
+		public void run() {
+			try {
+				// our own reference so we don't accidentally take a new connection's sockets
+				Socket incoming = Buddy.this.incoming;
+				Socket outgoing = Buddy.this.outgoing;
+				
+				InputStream is = outgoing.getInputStream();
+				OutputStream os = incoming.getOutputStream();
+				int c;
+				
+				StringBuilder sb = new StringBuilder();
+				while ((c = is.read()) >= 0) {
+					if (c == 0x10 || c == ' ') {
+						String l = sb.toString();
+						sb = new StringBuilder();
+						ReverseEvent re = new ReverseEvent(Buddy.this, l, is, os);
+						dov.getDispatcher().onReverseEvent(re);
+					}
+				}
+				
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				disconnect();
+			}
+		}
+	}
+
 }

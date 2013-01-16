@@ -24,4 +24,6 @@ public interface BuddyListener {
 	public void onStatus(StatusEvent e);
 
 	public void onFullyConnected(FullyConnectedEvent e);
+	
+	public void onReverseEvent(ReverseEvent e);
 }
