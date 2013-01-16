@@ -22,4 +22,6 @@ public interface BuddyListener {
 	public void onCommand(TextEvent e);
 
 	public void onStatus(StatusEvent e);
+
+	public void onFullyConnected(FullyConnectedEvent e);
 }

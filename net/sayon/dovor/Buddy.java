@@ -429,7 +429,8 @@ public class Buddy extends Thread {
 	public void onFullyConnected() throws IOException {
 		sendAllInfo();
 		checkQueue();
-		// TODO event here
+		FullyConnectedEvent fce = new FullyConnectedEvent(this);
+		dov.getDispatcher().onFullyConnected(fce);
 	}
 
 	public boolean isPongOk() {

@@ -124,4 +124,15 @@ public class EventDispatcher implements BuddyListener {
 		}
 	}
 
+	@Override
+	public void onFullyConnected(FullyConnectedEvent e) {
+		for (BuddyListener l : dov.getBuddyListeners()) {
+			try {
+				l.onFullyConnected(e);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+	}
+
 }

@@ -121,7 +121,7 @@ public class Configuration {
 	}
 
 	public long getKeepAliveInterval() {
-		return KEEP_ALIVE_INTERVAL * 1000; // TODO make configurable
+		return KEEP_ALIVE_INTERVAL * 1000;
 	}
 
 	public void loadTorId() {
