@@ -531,7 +531,7 @@ public class Buddy extends Thread {
 
 				StringBuilder sb = new StringBuilder();
 				while ((c = is.read()) >= 0) {
-					if (c == 0x10 || c == ' ') {
+					if (c == 0x0A || c == ' ') {
 						String l = sb.toString();
 						sb = new StringBuilder();
 						ReverseEvent re = new ReverseEvent(Buddy.this, l, is, os);

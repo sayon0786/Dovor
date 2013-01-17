@@ -12,7 +12,7 @@ public class EventDispatcher implements BuddyListener {
 
 	@Override
 	public void onEvent(Event e) {
-		for (BuddyListener l : dov.getBuddyListeners()) {
+		for (BuddyListener l : dov.getBuddyListeners().values()) {
 			try {
 				l.onEvent(e);
 				if (e instanceof ConsumableEvent && ((ConsumableEvent) e).isConsumed())

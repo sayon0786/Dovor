@@ -2,7 +2,7 @@ package net.sayon.dovor;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,7 +22,7 @@ public class Dovor {
 	private Configuration config;
 	private int status = Buddy.ONLINE;
 	private BuddyListener dispatcher;
-	private ArrayList<BuddyListener> buddyListeners = new ArrayList<BuddyListener>();
+	private HashMap<String, BuddyListener> buddyListeners = new HashMap<String, BuddyListener>();
 
 	static { // TODO switch to log4j
 		log = Logger.getLogger(Dovor.class.getName());
@@ -136,17 +136,21 @@ public class Dovor {
 		return executor;
 	}
 
-	public void addBuddyListener(BuddyListener bl) {
+	public void addPlugin(String name, BuddyListener bl) {
 		if (bl == null)
 			throw new NullPointerException();
-		buddyListeners.add(bl);
+		buddyListeners.put(name, bl);
+	}
+	
+	public BuddyListener getPlugin(String name) {
+		return buddyListeners.get(name);
 	}
 
 	public BuddyListener getDispatcher() {
 		return dispatcher;
 	}
 
-	public ArrayList<BuddyListener> getBuddyListeners() {
+	public HashMap<String, BuddyListener> getBuddyListeners() {
 		return buddyListeners;
 	}
 }
