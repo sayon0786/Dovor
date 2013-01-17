@@ -44,4 +44,19 @@ public class ReverseEvent extends Event { // TODO rename this class, do not like
 		return bb.array();
 	}
 
+	public byte[] readUnescapedBytesTillChar(char c) throws IOException {
+		ByteBuffer bb = ByteBuffer.allocate(100 * 1024); // 100 KiB
+		int rc;
+		int pc = 0x0;
+		while ((rc = is.read()) >= 0 && rc != c) {
+			if (pc == '\\' && rc == 'n') {
+				bb.position(bb.position()-1);
+				bb.put((byte) '\n');
+			} else {
+				bb.put((byte) rc);
+			}
+		}
+		return bb.array();
+	}
+
 }

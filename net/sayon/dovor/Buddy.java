@@ -203,13 +203,17 @@ public class Buddy extends Thread {
 		send(String.format("profile_name %s", dov.getConfig().getProfileName()));
 	}
 
-	public void sendAddNe() throws IOException {
+	public void sendAddMe() throws IOException {
 		send("add_me");
 	}
 
 	public void sendStatus() throws IOException {
 		send(String.format("status %s", dov.getStatusStringInternal()));
 		lastKeepAliveSent = System.currentTimeMillis();
+	}
+	
+	public void sendMessage(String message) throws IOException {
+		send(String.format("message %s", message.replaceAll("\\\\", "\\/").replaceAll("\n", "\\n")));
 	}
 
 	public void send(String s) throws IOException {
