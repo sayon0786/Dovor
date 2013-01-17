@@ -166,7 +166,12 @@ public class Buddy extends Thread {
 	public void setStatus(int status) {
 		if (this.status != status) {
 			StatusEvent se = new StatusEvent(this, status, this.status);
-			dov.getDispatcher().onEvent(se);
+			try {
+				dov.getDispatcher().onEvent(se);
+			} catch (IOException e) {
+				e.printStackTrace();
+				disconnect();
+			}
 			this.status = status;
 		}
 	}
@@ -512,30 +517,30 @@ public class Buddy extends Thread {
 			}
 		}
 	}
-	
+
 	private class BuddyReverse extends Thread {
 		public void run() {
 			try {
 				// our own reference so we don't accidentally take a new connection's sockets
 				Socket incoming = Buddy.this.incoming;
 				Socket outgoing = Buddy.this.outgoing;
-				
+
 				InputStream is = outgoing.getInputStream();
 				OutputStream os = incoming.getOutputStream();
 				int c;
-				
+
 				StringBuilder sb = new StringBuilder();
 				while ((c = is.read()) >= 0) {
-//					System.out.println(sb.toString());
-					sb.append((char)c);
 					if (c == 0x10 || c == ' ') {
 						String l = sb.toString();
 						sb = new StringBuilder();
 						ReverseEvent re = new ReverseEvent(Buddy.this, l, is, os);
 						dov.getDispatcher().onEvent(re);
+					} else {
+						sb.append((char) c);
 					}
 				}
-				
+
 			} catch (Exception e) {
 				e.printStackTrace();
 			} finally {

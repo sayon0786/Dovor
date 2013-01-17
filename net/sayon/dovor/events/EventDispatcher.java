@@ -19,6 +19,7 @@ public class EventDispatcher implements BuddyListener {
 					break;
 			} catch (Exception ex) {
 				ex.printStackTrace();
+				e.getBuddy().disconnect();
 			}
 		}
 	}

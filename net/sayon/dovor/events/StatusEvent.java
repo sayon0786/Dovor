@@ -3,7 +3,6 @@ package net.sayon.dovor.events;
 import net.sayon.dovor.Buddy;
 
 public class StatusEvent extends Event {
-	private Buddy buddy;
 	private int newStatus;
 	private int oldStatus;
 
@@ -11,10 +10,6 @@ public class StatusEvent extends Event {
 		this.buddy = buddy;
 		this.newStatus = newStatus;
 		this.oldStatus = oldStatus;
-	}
-
-	public Buddy getBuddy() {
-		return buddy;
 	}
 
 	public int getNewStatus() {

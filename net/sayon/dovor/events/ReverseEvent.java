@@ -8,7 +8,6 @@ import java.nio.ByteBuffer;
 import net.sayon.dovor.Buddy;
 
 public class ReverseEvent extends Event { // TODO rename this class, do not like :L
-	private Buddy buddy;
 	private String text;
 	private InputStream is;
 	private OutputStream os;
@@ -18,10 +17,6 @@ public class ReverseEvent extends Event { // TODO rename this class, do not like
 		this.text = l;
 		this.is = is;
 		this.os = os;
-	}
-
-	public Buddy getBuddy() {
-		return buddy;
 	}
 
 	public String getText() {
@@ -35,11 +30,11 @@ public class ReverseEvent extends Event { // TODO rename this class, do not like
 	public OutputStream getOutputStream() {
 		return os;
 	}
-	
+
 	public String readStringTillChar(char c) throws IOException {
 		return new String(readBytesTillChar(c));
 	}
-	
+
 	public byte[] readBytesTillChar(char c) throws IOException {
 		ByteBuffer bb = ByteBuffer.allocate(100 * 1024); // 100 KiB
 		int rc;
