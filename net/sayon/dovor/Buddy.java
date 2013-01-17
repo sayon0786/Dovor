@@ -14,8 +14,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
-import javax.sound.sampled.ReverbType;
-
 import net.sayon.dovor.events.*;
 
 public class Buddy extends Thread {
@@ -73,7 +71,7 @@ public class Buddy extends Thread {
 	}
 
 	public void connect() {
-		log.info("Connect called.");
+		log.info(getAddress() + ": Connect called.");
 		synchronized (connecting) {
 			if (connecting.get()) {
 				log.warning(getAddress() + " connect() called but already connecting!");
@@ -90,15 +88,15 @@ public class Buddy extends Thread {
 				try {
 					nextReconnection = -1;
 					startConnectingAt = System.currentTimeMillis();
-					log.info("Connect to proxy started.");
+					log.info(getAddress() + ": Connect to proxy started.");
 					outgoing = new Socket(new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", dov.getConfig().getSocksPort())));
-					log.info("Connect to buddy started.");
+					log.info(getAddress() + ": Connect to buddy started.");
 					outgoing.connect(InetSocketAddress.createUnresolved(getAddress() + ".onion", 11009));
 					if (incoming != null)
 						setStatus(CONNECTING);
 					else
 						setStatus(CONNECTING_THEM);
-					log.info("Handshake started with " + getAddress());
+					log.info(getAddress() + ": Handshake started with " + getAddress());
 					outgoingWriter = new OutputStreamWriter(outgoing.getOutputStream(), "UTF-8");
 					sendPing();
 					if (incoming != null && cookieToPong != null && !pongSent) {
@@ -128,7 +126,7 @@ public class Buddy extends Thread {
 
 	public void disconnect() {
 		Thread.dumpStack();
-		log.info("Disconnect called.");
+		log.info(getAddress() + ": Disconnect called.");
 		if (incoming != null) {
 			try {
 				incoming.close();
@@ -168,7 +166,7 @@ public class Buddy extends Thread {
 	public void setStatus(int status) {
 		if (this.status != status) {
 			StatusEvent se = new StatusEvent(this, status, this.status);
-			dov.getDispatcher().onStatus(se);
+			dov.getDispatcher().onEvent(se);
 			this.status = status;
 		}
 	}
@@ -212,7 +210,7 @@ public class Buddy extends Thread {
 	public void send(String s) throws IOException {
 		synchronized (outgoing) {
 			try {
-				log.info("< " + s);
+				log.info(getAddress() + " < " + s);
 				outgoingWriter.write(s);
 				outgoingWriter.write(0x0A);
 				outgoingWriter.flush();
@@ -224,7 +222,7 @@ public class Buddy extends Thread {
 	}
 
 	public void attatchIncoming(Socket s, Scanner sc, String cookietp, String pong) {
-		log.info("incoming attatch");
+		log.info(getAddress() + ": incoming attatch");
 		try {
 			if (pong != null && !checkPong(pong))
 				return;
@@ -232,7 +230,7 @@ public class Buddy extends Thread {
 			this.incoming = s;
 			while (sc.hasNextLine()) {
 				String l = sc.nextLine();
-				log.info("> " + l);
+				log.info(getAddress() + " > " + l);
 				String[] spl = l.split(" ");
 				if (spl[0].equals("pong")) {
 					if (spl.length < 2) {
@@ -272,7 +270,7 @@ public class Buddy extends Thread {
 						newVal = "";
 					version = newVal;
 					VersionEvent ve = new VersionEvent(this, newVal);
-					dov.getDispatcher().onVersion(ve);
+					dov.getDispatcher().onEvent(ve);
 				} else if (spl[0].equals("client")) {
 					String newVal;
 					if (l.split(" ", 2).length == 2)
@@ -281,7 +279,7 @@ public class Buddy extends Thread {
 						newVal = "";
 					client = newVal;
 					ClientEvent ce = new ClientEvent(this, newVal);
-					dov.getDispatcher().onClient(ce);
+					dov.getDispatcher().onEvent(ce);
 				} else if (spl[0].equals("profile_text")) {
 					String newVal;
 					if (l.split(" ", 2).length == 2)
@@ -290,7 +288,7 @@ public class Buddy extends Thread {
 						newVal = "";
 					profile_text = newVal;
 					ProfileTextEvent pte = new ProfileTextEvent(this, newVal);
-					dov.getDispatcher().onProfileText(pte);
+					dov.getDispatcher().onEvent(pte);
 				} else if (spl[0].equals("profile_name")) {
 					String newVal;
 					if (l.split(" ", 2).length == 2)
@@ -299,30 +297,30 @@ public class Buddy extends Thread {
 						newVal = "";
 					profile_name = newVal;
 					ProfileNameEvent pne = new ProfileNameEvent(this, newVal);
-					dov.getDispatcher().onProfileName(pne);
+					dov.getDispatcher().onEvent(pne);
 				} else if (spl[0].equals("add_me")) {
 					AddMeEvent ame = new AddMeEvent(this);
-					dov.getDispatcher().onAddMe(ame);
+					dov.getDispatcher().onEvent(ame);
 					if (!ame.isConsumed()) {
 						setFullBuddy(true);
 					}
 				} else if (spl[0].equals("remove_me")) {
 					RemoveMeEvent rme = new RemoveMeEvent(this);
-					dov.getDispatcher().onRemoveMe(rme);
+					dov.getDispatcher().onEvent(rme);
 					if (!rme.isConsumed()) {
 						setFullBuddy(false);
 					}
 				} else if (spl[0].equals("message")) {
 					MessageEvent me = new MessageEvent(this, l.split(" ", 2)[1]);
-					dov.getDispatcher().onMessage(me);
+					dov.getDispatcher().onEvent(me);
 				} else if (spl[0].equals("not_implemented")) {
 					String[] xspl = l.split(" ", 2);
 					NotImplementedEvent me = new NotImplementedEvent(this, xspl.length > 1 ? xspl[1] : null);
-					dov.getDispatcher().onNotImplemented(me);
+					dov.getDispatcher().onEvent(me);
 				} else { // TODO maybe should have most events be similar to this.
 					String[] xspl = l.split(" ", 2);
 					TextEvent te = new TextEvent(this, spl[0], xspl.length > 1 ? xspl[1] : null);
-					dov.getDispatcher().onCommand(te);
+					dov.getDispatcher().onEvent(te);
 				}
 			}
 		} catch (Exception e) {
@@ -435,7 +433,7 @@ public class Buddy extends Thread {
 		checkQueue();
 		new BuddyReverse().start();
 		FullyConnectedEvent fce = new FullyConnectedEvent(this);
-		dov.getDispatcher().onFullyConnected(fce);
+		dov.getDispatcher().onEvent(fce);
 	}
 
 	public boolean isPongOk() {
@@ -470,7 +468,6 @@ public class Buddy extends Thread {
 
 	private class Bupov implements Runnable {
 		public void run() {
-			log.info("kalthread");
 			if (outgoingWriter != null) {
 				if (unansweredPings > 3) {
 					disconnect();
@@ -529,11 +526,13 @@ public class Buddy extends Thread {
 				
 				StringBuilder sb = new StringBuilder();
 				while ((c = is.read()) >= 0) {
+//					System.out.println(sb.toString());
+					sb.append((char)c);
 					if (c == 0x10 || c == ' ') {
 						String l = sb.toString();
 						sb = new StringBuilder();
 						ReverseEvent re = new ReverseEvent(Buddy.this, l, is, os);
-						dov.getDispatcher().onReverseEvent(re);
+						dov.getDispatcher().onEvent(re);
 					}
 				}
 				
